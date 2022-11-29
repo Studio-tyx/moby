@@ -8,6 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"bufio"
+	"os"
+	"strconv"
+
 	"github.com/containerd/containerd/platforms"
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
@@ -121,6 +125,7 @@ func (daemon *Daemon) create(ctx context.Context, opts createOpts) (retC *contai
 		err   error
 		os    = runtime.GOOS
 	)
+	time1 := time.Now().UnixNano()
 
 	if opts.params.Config.Image != "" {
 		img, err = daemon.imageService.GetImage(ctx, opts.params.Config.Image, imagetypes.GetImageOpts{Platform: opts.params.Platform})
@@ -149,9 +154,11 @@ func (daemon *Daemon) create(ctx context.Context, opts createOpts) (retC *contai
 		return nil, errdefs.InvalidParameter(err)
 	}
 
+	time2 := time.Now().UnixNano()
 	if ctr, err = daemon.newContainer(opts.params.Name, os, opts.params.Config, opts.params.HostConfig, imgID, opts.managed); err != nil {
 		return nil, err
 	}
+	time3 := time.Now().UnixNano()
 	defer func() {
 		if retErr != nil {
 			err = daemon.cleanupContainer(ctr, types.ContainerRmConfig{
@@ -170,8 +177,10 @@ func (daemon *Daemon) create(ctx context.Context, opts createOpts) (retC *contai
 
 	ctr.HostConfig.StorageOpt = opts.params.HostConfig.StorageOpt
 
+	time4 := time.Now().UnixNano()
 	// Set RWLayer for container after mount labels have been set
 	rwLayer, err := daemon.imageService.CreateLayer(ctr, setupInitLayer(daemon.idMapping))
+	time5 := time.Now().UnixNano()
 	if err != nil {
 		return nil, errdefs.System(err)
 	}
@@ -207,6 +216,36 @@ func (daemon *Daemon) create(ctx context.Context, opts createOpts) (retC *contai
 	}
 	stateCtr.set(ctr.ID, "stopped")
 	daemon.LogContainerEvent(ctr, "create")
+	time6 := time.Now().UnixNano()
+	filePath := "/go/src/log.txt"
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0666) //0666 在windos下无效
+	if err != nil {
+			fmt.Println("open file err:",err)
+			return
+	}
+	defer file.Close()
+	writer := bufio.NewWriter(file)
+	str := "timestamp：\n"
+	writer.WriteString(str)
+	timestr1 := strconv.FormatInt(time1,10)
+	writer.WriteString(timestr1)
+	writer.WriteString("\n")
+	timestr2 := strconv.FormatInt(time2,10)
+	writer.WriteString(timestr2)
+	writer.WriteString("\n")
+	timestr3 := strconv.FormatInt(time3,10)
+	writer.WriteString(timestr3)
+	writer.WriteString("\n")
+	timestr4 := strconv.FormatInt(time4,10)
+	writer.WriteString(timestr4)
+	writer.WriteString("\n")
+	timestr5 := strconv.FormatInt(time5,10)
+	writer.WriteString(timestr5)
+	writer.WriteString("\n")
+	timestr6 := strconv.FormatInt(time6,10)
+	writer.WriteString(timestr6)
+	writer.WriteString("\n")
+	writer.Flush()
 	return ctr, nil
 }
 
